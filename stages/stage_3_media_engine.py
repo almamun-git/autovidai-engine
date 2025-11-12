@@ -1,78 +1,148 @@
 import os
-import time
 import requests
-import json
-from config import RUNWAYML_API_KEY
+from config import PEXELS_API_KEY, ELEVENLABS_API_KEY
 
-def generate_visual_for_scene(visual_prompt: str, scene_index: int) -> dict:
+def get_video_from_pexels(query: str, scene_index: int) -> dict:
     """
-    Generates an original video clip for a scene by calling the RunwayML REST API directly.
+    Fetches a relevant video clip from Pexels based on a search query.
     """
-    print(f"  - Generating AI video for: '{visual_prompt}'")
-
+    print(f"  - Searching Pexels for video: '{query}'")
+    
     headers = {
-        'Authorization': f'Bearer {RUNWAYML_API_KEY}',
-        'Content-Type': 'application/json',
+        'Authorization': PEXELS_API_KEY
     }
+    
+    params = {
+        'query': query,
+        'per_page': 1,
+        'orientation': 'portrait'  # For vertical/9:16 videos
+    }
+    
+    try:
+        response = requests.get('https://api.pexels.com/videos/search', headers=headers, params=params)
+        response.raise_for_status()
+        
+        data = response.json()
+        
+        if data.get('videos') and len(data['videos']) > 0:
+            video = data['videos'][0]
+            # Get the highest quality video file available
+            video_files = video.get('video_files', [])
+            
+            # Prefer HD portrait orientation
+            best_video = None
+            for vf in video_files:
+                if vf.get('quality') == 'hd' and vf.get('width', 0) < vf.get('height', 0):
+                    best_video = vf
+                    break
+            
+            # Fallback to any HD video
+            if not best_video:
+                for vf in video_files:
+                    if vf.get('quality') == 'hd':
+                        best_video = vf
+                        break
+            
+            # Final fallback to first video file
+            if not best_video and video_files:
+                best_video = video_files[0]
+            
+            if best_video:
+                video_url = best_video.get('link')
+                print(f"    -> ✅ Found Pexels video: {video_url}")
+                return {"video_url": video_url}
+        
+        print(f"    -> ⚠️ No suitable video found on Pexels for query: '{query}'")
+        return {"error": "No video found on Pexels"}
+        
+    except requests.RequestException as e:
+        print(f"    -> ❌ Pexels API Error: {e}")
+        return {"error": "Pexels API request failed", "details": str(e)}
 
-    # --- THIS IS THE FIX ---
-    # The payload structure and endpoint URL have been corrected to match the
-    # requirements for submitting an asynchronous 'gen2' model task.
+
+def get_audio_from_elevenlabs(text: str, scene_index: int) -> dict:
+    """
+    Generates TTS audio using ElevenLabs API.
+    """
+    print(f"  - Generating TTS audio for: '{text[:50]}...'")
+    
+    # Using ElevenLabs' default voice (Rachel)
+    voice_id = "21m00Tcm4TlvDq8ikWAM"
+    
+    url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+    
+    headers = {
+        'Accept': 'audio/mpeg',
+        'Content-Type': 'application/json',
+        'xi-api-key': ELEVENLABS_API_KEY
+    }
+    
     payload = {
-        "model": "gen2",
-        "text_to_video": {
-            "prompt_text": visual_prompt,
-            "duration": 4,
-            "ratio": "9:16"
+        'text': text,
+        'model_id': 'eleven_monolingual_v1',
+        'voice_settings': {
+            'stability': 0.5,
+            'similarity_boost': 0.75
         }
     }
     
-    submit_url = "https://api.runwayml.com/v1/tasks"
-    # ----------------------
-
     try:
-        # 1. Submit the task to start the video generation
-        submit_response = requests.post(submit_url, headers=headers, json=payload)
-        submit_response.raise_for_status() # This will raise an error for 4xx or 5xx responses
+        response = requests.post(url, headers=headers, json=payload)
+        response.raise_for_status()
         
-        task_id = submit_response.json()['id']
-        print(f"    -> RunwayML task submitted. Task ID: {task_id}")
-
-        # 2. Poll the API until the video is ready
-        print("    -> Waiting for video generation... (this can take a few minutes per scene)")
-        while True:
-            time.sleep(10)
-            status_url = f"https://api.runwayml.com/v1/tasks/{task_id}"
-            status_response = requests.get(status_url, headers=headers)
-            status_response.raise_for_status()
-            
-            status_data = status_response.json()
-            status = status_data.get('status')
-            print(f"      -> Scene {scene_index+1} status: {status}")
-
-            if status == "SUCCEEDED":
-                video_url = status_data.get('outputs', {}).get('video_path')
-                if video_url:
-                    print(f"    -> ✅ Video for scene {scene_index+1} generated successfully: {video_url}")
-                    return {"video_url": video_url}
-                else:
-                    print(f"    -> ❌ RunwayML task succeeded but no video path was found.")
-                    return {"error": "RunwayML task succeeded but no video found"}
-            
-            elif status == "FAILED":
-                error_detail = status_data.get('error', {}).get('detail', 'Unknown error.')
-                print(f"    -> ❌ RunwayML task failed: {error_detail}")
-                return {"error": "RunwayML task failed", "details": error_detail}
-
+        # Save the audio file locally
+        os.makedirs('temp', exist_ok=True)
+        audio_filename = f"temp/audio_scene_{scene_index}.mp3"
+        
+        with open(audio_filename, 'wb') as f:
+            f.write(response.content)
+        
+        print(f"    -> ✅ TTS audio saved: {audio_filename}")
+        return {"audio_path": audio_filename}
+        
     except requests.RequestException as e:
-        print(f"    -> ❌ RunwayML API Request Error: {e}")
-        if e.response:
-            print(f"      -> Response Body: {e.response.text}")
-        return {"error": "RunwayML API request failed", "details": str(e)}
-    except Exception as e:
-        print(f"    -> ❌ An unexpected error occurred: {e}")
-        return {"error": "An unexpected error occurred in visual generation", "details": str(e)}
+        print(f"    -> ❌ ElevenLabs API Error: {e}")
+        if hasattr(e, 'response') and e.response is not None:
+            print(f"      -> Response: {e.response.text}")
+        return {"error": "ElevenLabs API request failed", "details": str(e)}
 
-def get_audio_for_scene(narration_text: str, scene_index: int) -> dict:
-    # This function is not being used as per the user's request to remove audio generation.
-    pass
+
+def generate_media_assets(video_script: dict) -> list:
+    """
+    Processes all scenes and fetches video clips from Pexels and generates
+    TTS audio from ElevenLabs for each scene.
+    """
+    scenes_with_assets = []
+    
+    for i, scene in enumerate(video_script["scenes"]):
+        print(f"\nProcessing Scene {i+1}/{len(video_script['scenes'])}...")
+        
+        # Get video clip from Pexels
+        visual_query = scene.get("visual", "")
+        video_result = get_video_from_pexels(visual_query, i)
+        
+        if "error" in video_result:
+            print(f"  ⚠️ Skipping scene {i+1} due to video error.")
+            continue
+        
+        # Get TTS audio from ElevenLabs
+        narration_text = scene.get("narration", "")
+        audio_result = get_audio_from_elevenlabs(narration_text, i)
+        
+        if "error" in audio_result:
+            print(f"  ⚠️ Skipping scene {i+1} due to audio error.")
+            continue
+        
+        # Combine everything into the scene
+        scene_with_assets = {
+            "visual": visual_query,
+            "narration": narration_text,
+            "video_url": video_result["video_url"],
+            "audio_path": audio_result["audio_path"]
+        }
+        
+        scenes_with_assets.append(scene_with_assets)
+        print(f"  ✅ Scene {i+1} assets ready.")
+    
+    return scenes_with_assets
+
