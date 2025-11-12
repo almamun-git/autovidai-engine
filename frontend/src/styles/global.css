@@ -1,0 +1,5 @@
+body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen; margin:0; }
+input { display:block; padding:6px 8px; margin:4px 0 8px; width:100%; }
+button { padding:8px 14px; cursor:pointer; }
+nav a.active { font-weight:600; }
+pre { font-size:12px; }
