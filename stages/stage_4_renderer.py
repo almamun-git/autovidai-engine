@@ -7,6 +7,7 @@ from shotstack_sdk.model.timeline import Timeline
 from shotstack_sdk.model.output import Output
 from shotstack_sdk.model.edit import Edit
 from shotstack_sdk.model.video_asset import VideoAsset
+from shotstack_sdk.model.audio_asset import AudioAsset
 from shotstack_sdk.model.soundtrack import Soundtrack
 from shotstack_sdk.model.title_asset import TitleAsset
 import shotstack_sdk
@@ -27,21 +28,32 @@ def render_video(scenes: list, title: str) -> dict:
         
         api_instance = edit_api.EditApi(api_client)
 
-        clips = []
+        video_clips = []
+        audio_clips = []
+        caption_clips = []
         start_time = 0.0
         
-        # This loop now uses the real data from the previous stages
+        # Build the timeline with video, audio, and captions
         for scene in scenes:
-            # A simple way to estimate scene duration based on narration length
+            # Estimate scene duration based on narration length
             words_per_second = 2.5
-            duration = max(len(scene["narration"].split()) / words_per_second, 3.0) # Min 3s duration
+            duration = max(len(scene["narration"].split()) / words_per_second, 3.0)  # Min 3s duration
 
-            # Add the Pexels video clip to the timeline
+            # Add the Pexels video clip
             video_clip = Clip(
-                asset=VideoAsset(src=scene["video_url"], volume=1.0),
+                asset=VideoAsset(src=scene["video_url"], volume=0.0),  # Mute background video
                 start=start_time,
                 length=duration
             )
+            video_clips.append(video_clip)
+            
+            # Add the ElevenLabs TTS audio
+            audio_clip = Clip(
+                asset=AudioAsset(src=scene["audio_path"], volume=1.0),
+                start=start_time,
+                length=duration
+            )
+            audio_clips.append(audio_clip)
             
             # Add the caption overlay
             caption_asset = TitleAsset(text=scene["narration"], style="subtitle")
@@ -50,17 +62,29 @@ def render_video(scenes: list, title: str) -> dict:
                 start=start_time,
                 length=duration
             )
-
-            clips.append(video_clip)
-            clips.append(caption_clip)
+            caption_clips.append(caption_clip)
             
             # Increment the start time for the next scene
             start_time += duration
 
-        # Use a reliable public domain music URL.
-        soundtrack = Soundtrack(src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3", effect="fadeOut", volume=0.2)
+        # Add background music with low volume
+        soundtrack = Soundtrack(
+            src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+            effect="fadeInFadeOut",
+            volume=0.1
+        )
         
-        timeline = Timeline(background="#000000", tracks=[Track(clips=clips)], soundtrack=soundtrack)
+        # Create timeline with multiple tracks (video, audio, captions)
+        timeline = Timeline(
+            background="#000000",
+            tracks=[
+                Track(clips=video_clips),      # Track 1: Background video
+                Track(clips=audio_clips),      # Track 2: Voiceover audio
+                Track(clips=caption_clips)     # Track 3: Caption overlays
+            ],
+            soundtrack=soundtrack
+        )
+        
         output = Output(format="mp4", resolution="1080")
         edit = Edit(timeline=timeline, output=output)
 
@@ -70,7 +94,7 @@ def render_video(scenes: list, title: str) -> dict:
             render_id = api_response['response']['id']
             print(f"Request accepted. Render ID: {render_id}")
 
-            print("Waiting for render to complete... (this may take a minute)")
+            print("Waiting for render to complete... (this may take a few minutes)")
             while True:
                 time.sleep(10)
                 status_response = api_instance.get_render(render_id)
@@ -89,3 +113,4 @@ def render_video(scenes: list, title: str) -> dict:
         except Exception as e:
             print(f"❌ Error calling Shotstack API: {e}")
             return {"error": "Shotstack API request failed", "details": str(e)}
+
