@@ -54,3 +54,31 @@ def generate_video_idea(niche: str) -> dict:
         print(f"❌ Error parsing Gemini response: {e}")
         print(f"Raw Response Text: {locals().get('text_content', 'Not available')}")
         return {"error": "Could not parse API response", "details": str(e)}
+
+
+def suggest_niche_via_model() -> str | None:
+    """Ask the model to suggest a single concise, safe niche/topic.
+
+    Returns the suggested niche string or None on failure.
+    """
+    prompt = (
+        "Suggest one concise, safe niche/topic for a short-form social media video. "
+        "Return exactly one short phrase (no punctuation), for example: AI productivity"
+    )
+    headers = {'Content-Type': 'application/json'}
+    payload = {"contents": [{"parts": [{"text": prompt}]}]}
+    try:
+        resp = requests.post(GEMINI_API_URL, headers=headers, data=json.dumps(payload), timeout=20)
+        resp.raise_for_status()
+        resp_data = resp.json()
+        text = resp_data['candidates'][0]['content']['parts'][0]['text']
+        # pick first non-empty line and sanitize
+        first = next((line.strip() for line in text.splitlines() if line.strip()), None)
+        if not first:
+            return None
+        # remove punctuation except hyphens and spaces
+        safe = re.sub(r"[^\w\s-]", "", first).strip()
+        return safe if safe else None
+    except Exception as e:
+        print(f"❌ Error suggesting niche via model: {e}")
+        return None

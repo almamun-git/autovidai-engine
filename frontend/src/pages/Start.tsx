@@ -13,6 +13,8 @@ export default function Start() {
   const [result, setResult] = useState<any>(null)
   const [loading, setLoading] = useState(false)
   const [progress, setProgress] = useState(0)
+  const [suggesting, setSuggesting] = useState(false)
+  const [suggested, setSuggested] = useState<string | null>(null)
 
   const start = async () => {
     setLoading(true)
@@ -42,7 +44,38 @@ export default function Start() {
         <div className="mt-4 grid gap-4">
           <div>
             <Label>Niche / Topic</Label>
-            <Input value={niche} onChange={e => setNiche(e.target.value)} placeholder="e.g. Stoicism, AI productivity" />
+            <div className="flex gap-2 items-center">
+              <Input value={niche} onChange={e => setNiche(e.target.value)} placeholder="e.g. Stoicism, AI productivity" />
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={async () => {
+                  setSuggesting(true)
+                  setSuggested(null)
+                  try {
+                    const r = await fetch('/api/pipeline/suggest', { method: 'POST' })
+                    if (!r.ok) throw new Error('Suggestion failed')
+                    const j = await r.json()
+                    if (j.niche) setSuggested(j.niche)
+                  } catch (e) {
+                    console.error(e)
+                  } finally {
+                    setSuggesting(false)
+                  }
+                }}
+              >
+                {suggesting ? 'Suggesting…' : 'Suggest topic'}
+              </button>
+            </div>
+            {suggested ? (
+              <div className="mt-2 flex items-center gap-2 text-sm">
+                <span className="text-muted">Suggested:</span>
+                <span className="px-2 py-1 rounded bg-white/5">{suggested}</span>
+                <button type="button" className="btn-ghost text-sm" onClick={() => { setNiche(suggested || ''); setSuggested(null) }}>
+                  Use suggestion
+                </button>
+              </div>
+            ) : null}
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
