@@ -9,10 +9,17 @@ def generate_video_idea(niche: str) -> dict:
     print("--- Stage 1: Idea Engine ---")
     print(f"Received niche: {niche}")
 
+    # Validate input — do not proceed with an empty or placeholder niche
+    if not niche or not str(niche).strip():
+        print("❌ Error: missing required 'niche' parameter")
+        return {"error": "Missing required parameter: niche"}
+
+    # Use the provided niche value (trim whitespace) and ensure prompt spacing is correct.
+    niche_clean = str(niche).strip()
     master_prompt = f"""
     You're a social media expert who knows how to make short-form videos go viral.
-    Your job is to come up with a complete video idea for the niche: {niche}.Keep the tone natural, engaging, and attention-grabbing — something that feels exciting and made for social media.
-    Respond with only one minified JSON object — no line breaks, no markdown, no extra explanation.Make sure your response follows this format exactly:
+    Your job is to come up with a complete video idea for the niche: {niche_clean}. Keep the tone natural, engaging, and attention-grabbing — something that feels exciting and made for social media.
+    Respond with only one minified JSON object — no line breaks, no markdown, no extra explanation. Make sure your response follows this format exactly:
     {{
         "title": "A short, catchy, title-case title for the video.",
         "hook": "A strong, one-sentence opening line to grab the viewer's attention.",
