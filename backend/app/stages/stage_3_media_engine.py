@@ -1,7 +1,15 @@
 import os
 import requests
 import logging
-from app.config import PEXELS_API_KEY, ELEVENLABS_API_KEY
+import subprocess
+from app.config import (
+    PEXELS_API_KEY,
+    ELEVENLABS_API_KEY,
+    MEDIA_SOURCE,
+    STABLE_VIDEO_SERVER_URL,
+    STABLE_VIDEO_POLL_INTERVAL,
+    STABLE_VIDEO_MAX_POLL,
+)
 
 DEV_FALLBACK_MODE = (
     os.getenv("AUTOVIDAI_DEV_MODE", "").lower() in {"1", "true", "yes"}
@@ -63,20 +71,39 @@ def get_video_from_pexels(query: str, scene_index: int) -> dict:
             return {"video_url": url, "placeholder": True}
         return {"error": "Pexels API request failed", "details": str(e)}
 
+def _generate_silent_audio(scene_index: int, duration: float = 1.0) -> str:
+    """Generate a proper silent AAC/mp3 audio file instead of a placeholder stub.
+
+    Uses ffmpeg anullsrc if available; falls back to tiny placeholder bytes otherwise.
+    """
+    os.makedirs("temp", exist_ok=True)
+    audio_filename = f"temp/audio_scene_{scene_index}.mp3"
+    try:
+        # Prefer ffmpeg if installed
+        if subprocess.run(["which", "ffmpeg"], capture_output=True).returncode == 0:
+            subprocess.run([
+                "ffmpeg", "-y",
+                "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
+                "-t", f"{duration:.2f}",
+                "-q:a", "5",
+                audio_filename
+            ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        else:
+            # Fallback tiny valid-ish MP3 header (still silence-ish)
+            with open(audio_filename, 'wb') as f:
+                f.write(b"ID3\x04\x00\x00\x00\x00\x00\x0Fsilence")
+    except Exception as e:
+        logging.warning("Silent audio generation failed: %s", e)
+        # Last resort placeholder
+        with open(audio_filename, 'wb') as f:
+            f.write(b"ID3\x04\x00\x00\x00\x00\x00\x0Ffallback")
+    return audio_filename
+
 def get_audio_from_elevenlabs(text: str, scene_index: int) -> dict:
     print(f"  - Generating TTS audio for: '{text[:50]}...'")
-    if DEV_FALLBACK_MODE:
-        # For dev, pretend an audio file exists; create a short silent file locally.
-        os.makedirs('temp', exist_ok=True)
-        audio_filename = f"temp/audio_scene_{scene_index}.mp3"
-        try:
-            if not os.path.exists(audio_filename):
-                # Write a tiny placeholder file
-                with open(audio_filename, 'wb') as f:
-                    f.write(b"ID3\x04\x00\x00\x00\x00\x00\x0Fsimulated")
-        except Exception as e:
-            logging.debug("Could not create placeholder audio: %s", e)
-        print(f"    -> ⚙️ Dev fallback audio: {audio_filename}")
+    if DEV_FALLBACK_MODE or not ELEVENLABS_API_KEY:
+        audio_filename = _generate_silent_audio(scene_index)
+        print(f"    -> ⚙️ Dev/placeholder silent audio: {audio_filename}")
         return {"audio_path": audio_filename, "fallback": True}
     voice_id = "21m00Tcm4TlvDq8ikWAM"
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
@@ -95,29 +122,126 @@ def get_audio_from_elevenlabs(text: str, scene_index: int) -> dict:
         if hasattr(e, 'response') and e.response is not None:
             print(f"      -> Response: {e.response.text}")
         if ALLOW_PLACEHOLDER:
-            os.makedirs('temp', exist_ok=True)
-            audio_filename = f"temp/audio_scene_{scene_index}.mp3"
-            try:
-                with open(audio_filename, 'wb') as f:
-                    f.write(b"ID3\x04\x00\x00\x00\x00\x00\x0Fplaceholder")
-                print(f"    -> 🔁 Using placeholder audio: {audio_filename}")
-                return {"audio_path": audio_filename, "placeholder": True}
-            except Exception as ex:
-                print(f"    -> ❌ Failed to write placeholder audio: {ex}")
+            audio_filename = _generate_silent_audio(scene_index)
+            print(f"    -> 🔁 Using silent placeholder audio: {audio_filename}")
+            return {"audio_path": audio_filename, "placeholder": True}
         return {"error": "ElevenLabs API request failed", "details": str(e)}
 
+def _svd_generate(prompt: str, scene_index: int) -> dict:
+    """Attempt to generate a video clip via a local Stable Video Diffusion server.
+
+    Expected API (simplified pseudo):
+        POST {STABLE_VIDEO_SERVER_URL}/generate {prompt: str} -> {id: str}
+        GET  {STABLE_VIDEO_SERVER_URL}/status/{id} -> {status: str, url: str?}
+    For now, gracefully fallback if server unreachable.
+    """
+    if DEV_FALLBACK_MODE:
+        # In dev just reuse public sample
+        return {"video_url": "https://www.w3schools.com/html/mov_bbb.mp4", "fallback": True}
+    gen_endpoint = STABLE_VIDEO_SERVER_URL.rstrip('/') + '/generate'
+    try:
+        r = requests.post(gen_endpoint, json={"prompt": prompt}, timeout=15)
+        if not r.ok:
+            logging.warning("SVD generate non-OK %s: %s", r.status_code, r.text[:120])
+            raise RuntimeError("svd generate failed")
+        job_id = r.json().get("id")
+        if not job_id:
+            raise RuntimeError("svd missing id")
+        status_endpoint = STABLE_VIDEO_SERVER_URL.rstrip('/') + f'/status/{job_id}'
+        polls = 0
+        while polls < STABLE_VIDEO_MAX_POLL:
+            polls += 1
+            sr = requests.get(status_endpoint, timeout=15)
+            if not sr.ok:
+                logging.warning("SVD status non-OK %s", sr.status_code)
+                break
+            payload = sr.json()
+            status = payload.get("status")
+            if status in {"completed", "done"}:
+                url = payload.get("url") or payload.get("video_url")
+                if url:
+                    return {"video_url": url}
+                break
+            if status in {"failed", "error"}:
+                logging.warning("SVD job failed: %s", payload)
+                break
+            import time as _t; _t.sleep(STABLE_VIDEO_POLL_INTERVAL)
+    except Exception as e:
+        logging.warning("SVD generation error: %s", e)
+    # Fallback path: return placeholder to allow pipeline continuation
+    return {"video_url": "https://www.w3schools.com/html/movie.mp4", "placeholder": True}
+
+def _local_text_clip(narration: str, scene_index: int) -> dict:
+    """Generate a short local synthetic clip with text overlay as last-resort fallback.
+    Requires ffmpeg with drawtext (libfreetype). If drawtext unsupported, a plain color clip is produced.
+    """
+    if subprocess.run(["which", "ffmpeg"], capture_output=True).returncode != 0:
+        return {"video_url": "https://www.w3schools.com/html/mov_bbb.mp4", "fallback": True}
+    os.makedirs("temp", exist_ok=True)
+    out_path = f"temp/synthetic_scene_{scene_index}.mp4"
+    text = (narration[:50] + "…") if narration else f"Scene {scene_index+1}"
+    # Try drawtext; if fails we retry without it
+    base_cmd = [
+        "ffmpeg", "-y",
+        "-f", "lavfi", "-i", "color=c=black:s=720x1280:d=3",
+        "-vf", f"drawtext=text='{text}':fontcolor=white:fontsize=48:x=(w-text_w)/2:y=(h-text_h)/2",
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "30",
+        out_path
+    ]
+    try:
+        subprocess.run(base_cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return {"video_url": out_path, "generated": True}
+    except Exception:
+        try:
+            subprocess.run([
+                "ffmpeg", "-y", "-f", "lavfi", "-i", "color=c=black:s=720x1280:d=3",
+                "-c:v", "libx264", "-preset", "veryfast", "-crf", "30", out_path
+            ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return {"video_url": out_path, "generated": True, "no_text": True}
+        except Exception as e:
+            logging.warning("Local synthetic clip failed: %s", e)
+            return {"video_url": "https://www.w3schools.com/html/mov_bbb.mp4", "fallback": True}
+
 def generate_media_assets(video_script: dict) -> list:
+    """Generate media assets per scene using selected MEDIA_SOURCE.
+
+    MEDIA_SOURCE options:
+      pexels - stock footage from Pexels
+      svd    - local Stable Video Diffusion server (fallbacks to placeholder if unavailable)
+    """
     scenes_with_assets = []
-    for i, scene in enumerate(video_script["scenes"]):
-        print(f"\nProcessing Scene {i+1}/{len(video_script['scenes'])}...")
+    total = len(video_script.get("scenes", []))
+    for i, scene in enumerate(video_script.get("scenes", [])):
+        print(f"\nProcessing Scene {i+1}/{total} (media_source={MEDIA_SOURCE})...")
         visual_query = scene.get("visual", "")
-        video_result = get_video_from_pexels(visual_query, i)
+        # VIDEO selection
+        if MEDIA_SOURCE == "pexels":
+            video_result = get_video_from_pexels(visual_query, i)
+        elif MEDIA_SOURCE == "svd":
+            prompt = visual_query or scene.get("narration", "")
+            video_result = _svd_generate(prompt, i)
+        else:
+            video_result = {"error": f"Unsupported MEDIA_SOURCE {MEDIA_SOURCE}"}
         if "error" in video_result:
-            print(f"  ⚠️ Skipping scene {i+1} due to video error."); continue
+            print(f"  ⚠️ Video acquisition failed for scene {i+1}: {video_result.get('error')}")
+            if ALLOW_PLACEHOLDER:
+                video_result = _local_text_clip(scene.get("narration", ""), i)
+            else:
+                continue
         narration_text = scene.get("narration", "")
         audio_result = get_audio_from_elevenlabs(narration_text, i)
         if "error" in audio_result:
-            print(f"  ⚠️ Skipping scene {i+1} due to audio error."); continue
-        scenes_with_assets.append({"visual": visual_query,"narration": narration_text,"video_url": video_result["video_url"],"audio_path": audio_result["audio_path"]})
+            print(f"  ⚠️ Audio acquisition failed for scene {i+1}: {audio_result.get('error')}")
+            if ALLOW_PLACEHOLDER:
+                # Replace with silent fallback
+                audio_result = {"audio_path": _generate_silent_audio(i), "placeholder": True}
+            else:
+                continue
+        scenes_with_assets.append({
+            "visual": visual_query,
+            "narration": narration_text,
+            "video_url": video_result["video_url"],
+            "audio_path": audio_result["audio_path"],
+        })
         print(f"  ✅ Scene {i+1} assets ready.")
     return scenes_with_assets

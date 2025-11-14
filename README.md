@@ -18,8 +18,9 @@ The system takes a single-word niche (e.g., "Stoicism") and executes the followi
 
 ### **Stage 3: Asset Generation (Media Engine)**
 - Makes parallel API calls to source all necessary media.
-- Fetches relevant stock video clips from the **Pexels API**.
-- Generates realistic TTS voiceovers for each scene's narration using the **ElevenLabs API**.
+- Fetches relevant stock video clips from the **Pexels API** (default).
+- (Experimental) Generates AI video clips via a **self-hosted Stable Video Diffusion** server when `MEDIA_SOURCE=svd`.
+- Generates realistic TTS voiceovers for each scene's narration using the **ElevenLabs API** (falls back to locally generated silent audio in dev or error cases).
 
 ### **Stage 4: Rendering (Video Assembly)**
 - Assembles the final edit by sending the script, video assets, and audio assets to the **Shotstack Video API** for programmatic, cloud-based rendering.
@@ -44,6 +45,26 @@ This project is a demonstration of API orchestration and building a resilient, m
 ### **Rendering Backends:**
 - **Shotstack API (cloud)**: Programmatic editing & high-quality rendering.
 - **Local FFmpeg (free fallback)**: Set `RENDER_BACKEND=local` to bypass Shotstack and stitch scenes on your machine (lower quality, minimal features, zero cost).
+
+### **Media Sources (Stage 3):**
+| Source | Env Setting | Purpose | Fallbacks |
+|--------|------------|---------|-----------|
+| Pexels | `MEDIA_SOURCE=pexels` (default) | Stock footage retrieval | Placeholder sample video if no match or API error |
+| Stable Video Diffusion (local) | `MEDIA_SOURCE=svd` | AI‑generated motion clip per scene | Placeholder sample or synthetic text clip if server unavailable |
+
+Experimental SVD mode expects a local server exposing a minimal API:
+```
+POST /generate { "prompt": "text" } -> { "id": "job123" }
+GET  /status/job123 -> { "status": "completed", "url": "http://.../clip.mp4" }
+```
+Environment variables influencing this flow:
+```
+MEDIA_SOURCE=svd
+STABLE_VIDEO_SERVER_URL=http://127.0.0.1:7860
+STABLE_VIDEO_POLL_INTERVAL=3
+STABLE_VIDEO_MAX_POLL=40
+```
+If generation fails or times out, a local synthetic clip (black background + text) or public sample video is substituted to keep the pipeline resilient.
 
 ---
 
@@ -155,6 +176,32 @@ Requirements for local renderer:
 | Local FFmpeg | `RENDER_BACKEND=local` | Free, offline, no external render API | Basic merge only (no animated captions yet) |
 
 If quality isn’t critical or you’re just iterating logic, start with the local backend.
+
+### Self-Hosting Stable Video Diffusion (Experimental)
+
+You can self-host an open Stable Video Diffusion model to avoid paid generative APIs:
+
+#### Option 1: Docker (preferred if image available)
+```
+docker run --gpus all -p 7860:7860 your-svd-image:latest
+```
+
+#### Option 2: Conda Environment
+```
+conda create -n svd python=3.10 -y
+conda activate svd
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+pip install diffusers transformers accelerate safetensors fastapi uvicorn
+python server.py  # Your wrapper exposing /generate and /status endpoints
+```
+
+Set required environment variables before starting the AutoVidAI backend:
+```
+export MEDIA_SOURCE=svd
+export STABLE_VIDEO_SERVER_URL=http://127.0.0.1:7860
+```
+
+Keep the machine running while jobs are active. If the server goes down mid-generation, the pipeline will fall back gracefully to a placeholder clip.
 
 ---
 
