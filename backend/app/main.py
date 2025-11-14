@@ -5,6 +5,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
+from typing import List, Dict
 
 from app.services.pipeline_runner import run_pipeline
 from app.stages.stage_1_idea_engine import suggest_niche_via_model
@@ -299,6 +300,54 @@ def get_file(filename: str):
     if not os.path.exists(safe_path):
         raise HTTPException(status_code=404, detail="File not found")
     return FileResponse(safe_path)
+
+
+@app.get("/library/videos")
+def list_library_videos() -> Dict[str, List[Dict]]:
+    """List generated videos stored locally in temp/render_local.
+
+    Returns basic metadata and a playable URL via /files.
+    """
+    base_dir = os.path.abspath(os.path.join("temp", "render_local"))
+    if not os.path.exists(base_dir):
+        return {"videos": []}
+    items: List[Dict] = []
+    try:
+        for name in os.listdir(base_dir):
+            if not name.lower().endswith(".mp4"):
+                continue
+            path = os.path.join(base_dir, name)
+            try:
+                stat = os.stat(path)
+                items.append({
+                    "filename": name,
+                    "size": stat.st_size,
+                    "mtime": stat.st_mtime,
+                    "url": f"/files/{name}",
+                })
+            except Exception:
+                continue
+        # Sort newest first
+        items.sort(key=lambda x: x.get("mtime", 0), reverse=True)
+        return {"videos": items}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/library/videos/{filename}")
+def delete_library_video(filename: str):
+    """Delete a generated video from the local library directory."""
+    base_dir = os.path.abspath(os.path.join("temp", "render_local"))
+    safe_path = os.path.abspath(os.path.normpath(os.path.join(base_dir, filename)))
+    if not safe_path.startswith(base_dir + os.sep) and safe_path != base_dir:
+        raise HTTPException(status_code=400, detail="Invalid file path")
+    if not os.path.exists(safe_path):
+        raise HTTPException(status_code=404, detail="File not found")
+    try:
+        os.remove(safe_path)
+        return {"ok": True}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/pipeline/suggest", response_model=SuggestResponse)

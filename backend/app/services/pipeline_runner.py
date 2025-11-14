@@ -8,6 +8,7 @@ from app.stages.stage_2_scriptwriter import generate_video_script
 from app.stages.stage_3_media_engine import generate_media_assets
 from app.stages.stage_4_renderer import render_video
 from app.stages.stage_5_distributor import upload_video_to_youtube
+import os, time, shutil, re
 
 
 def run_pipeline(niche: str, upload: bool = False) -> dict:
@@ -70,6 +71,23 @@ def run_pipeline(niche: str, upload: bool = False) -> dict:
         result["render"] = render_result
         result["final_video_url"] = render_result["final_video_url"]
         logging.info("Stage 4 complete — final_url=%s", result["final_video_url"])
+
+        # Append video to local library with a unique name (if local render)
+        try:
+            if isinstance(render_result, dict) and render_result.get("local") and os.path.exists(result["final_video_url"] or ""):
+                base_dir = os.path.join("temp", "render_local")
+                os.makedirs(base_dir, exist_ok=True)
+                # Build a slug from the title
+                slug = re.sub(r"[^a-z0-9]+", "-", (title or "video").lower()).strip("-")
+                ts = time.strftime("%Y%m%d-%H%M%S")
+                target_name = f"{slug}-{ts}.mp4"
+                target_path = os.path.join(base_dir, target_name)
+                shutil.copyfile(result["final_video_url"], target_path)
+                # Include library url for convenience
+                result["library_file"] = target_name
+                result["library_url"] = f"/files/{target_name}"
+        except Exception as e:
+            logging.warning("Could not archive video to library: %s", e)
 
         # Stage 5: Upload (optional)
         if upload:
