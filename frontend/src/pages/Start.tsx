@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Input, Label, Select, Range } from '../components/ui/Form'
 import ProgressBar from '../components/ui/ProgressBar'
 
@@ -11,6 +11,7 @@ export default function Start() {
   const [upload, setUpload] = useState(false)
   const [verbose, setVerbose] = useState(false)
   const [result, setResult] = useState<any>(null)
+  const [videoUrl, setVideoUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [progress, setProgress] = useState(0)
   const [suggesting, setSuggesting] = useState(false)
@@ -29,6 +30,18 @@ export default function Start() {
       const data = await res.json()
       setProgress(90)
       setResult(data)
+      // Derive playable video URL
+      if (data.final_video_url) {
+        if (data.final_video_url.startsWith('http')) {
+          setVideoUrl(data.final_video_url)
+        } else {
+          const parts = data.final_video_url.split('/')
+          const filename = parts[parts.length - 1] || 'final_video.mp4'
+          setVideoUrl(`/files/${filename}`)
+        }
+      } else {
+        setVideoUrl(null)
+      }
     } catch (e) {
       setResult({ error: String(e) })
     } finally {
@@ -114,11 +127,23 @@ export default function Start() {
           </div>
         </div>
       </div>
-      <div className="card">
+      <div className="card space-y-4">
         <h3 className="text-base font-semibold">Result</h3>
-        <div className="mt-3">
+        <div>
+          {videoUrl ? (
+            <video
+              key={videoUrl}
+              controls
+              className="w-full rounded-lg border border-white/10 bg-black"
+              src={videoUrl}
+            />
+          ) : (
+            <p className="text-xs text-muted">No video yet.</p>
+          )}
+        </div>
+        <div>
           {result ? (
-            <pre className="text-xs font-mono bg-white/5 p-3 rounded-lg border border-white/10 overflow-auto">{JSON.stringify(result, null, 2)}</pre>
+            <pre className="text-xs font-mono bg-white/5 p-3 rounded-lg border border-white/10 max-h-64 overflow-auto">{JSON.stringify(result, null, 2)}</pre>
           ) : (
             <p className="text-sm text-muted">Output will appear here after generation starts.</p>
           )}

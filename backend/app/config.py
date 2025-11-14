@@ -9,6 +9,8 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 PEXELS_API_KEY = os.getenv("PEXELS_API_KEY")
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
 SHOTSTACK_API_KEY = os.getenv("SHOTSTACK_API_KEY")
+# Render backend selection: 'shotstack' (default) or 'local'
+RENDER_BACKEND = os.getenv("RENDER_BACKEND", "shotstack").lower().strip()
 # Use 'v1' for production, 'stage' for Shotstack staging environments
 _raw_stage = os.getenv("SHOTSTACK_STAGE", "v1").lower().strip()
 if _raw_stage in {"stage", "staging", "sandbox", "dev"}:
@@ -22,7 +24,7 @@ else:
 # Dev mode allows running without real keys; stages will provide fallbacks.
 AUTOVIDAI_DEV_MODE = 0
 
-if not AUTOVIDAI_DEV_MODE:
-    # In non-dev mode, enforce presence of all keys.
+if not AUTOVIDAI_DEV_MODE and RENDER_BACKEND != "local":
+    # In non-dev mode, enforce presence of all keys unless using local renderer (which bypasses Shotstack and can run w/o SHOTSTACK key).
     if not all([GEMINI_API_KEY, PEXELS_API_KEY, ELEVENLABS_API_KEY, SHOTSTACK_API_KEY]):
-        raise ValueError("One or more API keys are missing. Please check your .env file or enable AUTOVIDAI_DEV_MODE.")
+        raise ValueError("One or more API keys are missing. Please check your .env file or enable AUTOVIDAI_DEV_MODE or set RENDER_BACKEND=local.")

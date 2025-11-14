@@ -41,8 +41,9 @@ This project is a demonstration of API orchestration and building a resilient, m
 - **Pexels API:** For high-quality stock video footage.
 - **ElevenLabs API:** For realistic text-to-speech voiceover synthesis.
 
-### **Cloud Rendering:**
-- **Shotstack API:** For programmatic video editing and rendering.
+### **Rendering Backends:**
+- **Shotstack API (cloud)**: Programmatic editing & high-quality rendering.
+- **Local FFmpeg (free fallback)**: Set `RENDER_BACKEND=local` to bypass Shotstack and stitch scenes on your machine (lower quality, minimal features, zero cost).
 
 ---
 
@@ -115,11 +116,45 @@ You will need API keys from all the services used in this project.
 
 Once the setup is complete, you can run the entire pipeline with a single command from the project's root directory:
 
+### FastAPI Server Mode (Recommended)
+
 ```bash
-python3 main.py
+export PYTHONPATH="backend"
+uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-The script will print status updates for each stage to the console. The final rendered video URL will be displayed at the end of a successful run.
+Trigger a pipeline run:
+
+```bash
+curl -s -X POST 'http://127.0.0.1:8000/pipeline' -H 'Content-Type: application/json' -d '{"niche":"stoicism","upload":false}' | jq .
+```
+
+### Local Renderer (Free Alternative)
+
+Set environment variable before starting the server:
+
+```bash
+export RENDER_BACKEND=local
+export FAST_MODE=1   # optional, limits scenes & durations
+```
+
+Pipeline response will include `final_video_url` pointing to a local path like `temp/render_local/final_video.mp4`. Serve the file via:
+
+```bash
+curl -O 'http://127.0.0.1:8000/files/final_video.mp4'
+```
+
+Requirements for local renderer:
+- `ffmpeg` installed (`brew install ffmpeg` on macOS)
+- Narration audio files produced by ElevenLabs (or placeholders) present under `temp/`
+
+### Choosing a Backend
+| Backend | Env Setting | Pros | Cons |
+|---------|-------------|------|------|
+| Shotstack | `RENDER_BACKEND=shotstack` (default) | Cloud-grade editing, captions, scalable | Requires API key & credits |
+| Local FFmpeg | `RENDER_BACKEND=local` | Free, offline, no external render API | Basic merge only (no animated captions yet) |
+
+If quality isn’t critical or you’re just iterating logic, start with the local backend.
 
 ---
 
@@ -128,6 +163,7 @@ The script will print status updates for each stage to the console. The final re
 This project is an ongoing proof-of-concept. The planned next steps include:
 
 - **Stage 5 (Distributor):** Implementing programmatic uploads using the YouTube Content API, handling OAuth 2.0 for user authentication.
+- **Caption Overlay for Local Backend:** Add burned-in subtitles via ffmpeg `drawtext` or SRT workflows.
 - **Scheduling & Job Queues:** Integrating APScheduler for autonomous, scheduled runs and eventually moving to a more robust job queue system like Celery/Redis.
 - **Front-End Control Panel:** Building a React-based UI to manage niches, view render history, and provide a real-time logging dashboard (likely via WebSockets).
 - **CI/CD:** Setting up a simple CI/CD pipeline with GitHub Actions for automated testing and deployment.
