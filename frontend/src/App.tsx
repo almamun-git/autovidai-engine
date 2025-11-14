@@ -5,7 +5,7 @@ import Start from './pages/Start'
 import WorkflowBuilder from './pages/WorkflowBuilder'
 import VideoLibrary from './pages/VideoLibrary'
 import LogsAnalytics from './pages/LogsAnalytics'
-import AppShell from './components/layout/AppShell'
+import AppShell from './components/Layout/AppShell'
 
 export default function App() {
   return (
