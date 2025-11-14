@@ -273,7 +273,7 @@ def generate_media_assets(video_script: dict) -> list:
             else:
                 continue
         narration_text = scene.get("narration", "")
-    audio_result = get_audio(narration_text, i)
+        audio_result = get_audio(narration_text, i)
         if "error" in audio_result:
             print(f"  ⚠️ Audio acquisition failed for scene {i+1}: {audio_result.get('error')}")
             if ALLOW_PLACEHOLDER:
