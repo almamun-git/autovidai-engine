@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 from dotenv import load_dotenv, find_dotenv
+import logging
 
 # Load .env from project root even when running from backend/
 load_dotenv(find_dotenv(usecwd=True) or Path(__file__).resolve().parents[2] / '.env')
@@ -13,6 +14,8 @@ SHOTSTACK_API_KEY = os.getenv("SHOTSTACK_API_KEY")
 RENDER_BACKEND = os.getenv("RENDER_BACKEND", "shotstack").lower().strip()
 # Media source selection for Stage 3: 'pexels' (stock) or 'svd' (Stable Video Diffusion local server)
 MEDIA_SOURCE = os.getenv("MEDIA_SOURCE", "pexels").lower().strip()
+# TTS source selection: 'elevenlabs' (API) or 'local' (offline engine)
+TTS_SOURCE = os.getenv("TTS_SOURCE", "elevenlabs").lower().strip()
 # Optional self-hosted Stable Video Diffusion server URL
 STABLE_VIDEO_SERVER_URL = os.getenv("STABLE_VIDEO_SERVER_URL", "http://127.0.0.1:7860")
 STABLE_VIDEO_POLL_INTERVAL = float(os.getenv("STABLE_VIDEO_POLL_INTERVAL", "3"))  # seconds
@@ -37,6 +40,8 @@ if not AUTOVIDAI_DEV_MODE and RENDER_BACKEND != "local":
 
 # Basic sanity: MEDIA_SOURCE must be one of supported options
 if MEDIA_SOURCE not in {"pexels", "svd"}:
-    logging_warning_fn = getattr(logging, "warning", print)
-    logging_warning_fn(f"Unsupported MEDIA_SOURCE '{MEDIA_SOURCE}' - falling back to 'pexels'")
+    logging.warning(f"Unsupported MEDIA_SOURCE '{MEDIA_SOURCE}' - falling back to 'pexels'")
     MEDIA_SOURCE = "pexels"
+if TTS_SOURCE not in {"elevenlabs", "local"}:
+    logging.warning(f"Unsupported TTS_SOURCE '{TTS_SOURCE}' - falling back to 'elevenlabs'")
+    TTS_SOURCE = "elevenlabs"

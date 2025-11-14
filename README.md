@@ -20,7 +20,7 @@ The system takes a single-word niche (e.g., "Stoicism") and executes the followi
 - Makes parallel API calls to source all necessary media.
 - Fetches relevant stock video clips from the **Pexels API** (default).
 - (Experimental) Generates AI video clips via a **self-hosted Stable Video Diffusion** server when `MEDIA_SOURCE=svd`.
-- Generates realistic TTS voiceovers for each scene's narration using the **ElevenLabs API** (falls back to locally generated silent audio in dev or error cases).
+- Generates narration via **ElevenLabs API** or local offline TTS when `TTS_SOURCE=local` (pyttsx3). Falls back to generated silence if unavailable.
 
 ### **Stage 4: Rendering (Video Assembly)**
 - Assembles the final edit by sending the script, video assets, and audio assets to the **Shotstack Video API** for programmatic, cloud-based rendering.
@@ -47,6 +47,23 @@ This project is a demonstration of API orchestration and building a resilient, m
 - **Local FFmpeg (free fallback)**: Set `RENDER_BACKEND=local` to bypass Shotstack and stitch scenes on your machine (lower quality, minimal features, zero cost).
 
 ### **Media Sources (Stage 3):**
+### **TTS Sources (Narration):**
+| Source | Env Setting | Pros | Cons |
+|--------|-------------|------|------|
+| ElevenLabs API | `TTS_SOURCE=elevenlabs` (default) | High quality voices | Requires API key, quota/cost |
+| Local TTS (pyttsx3) | `TTS_SOURCE=local` | Free, offline | Robotic voice, limited expressiveness |
+
+Set `TTS_SOURCE=local` to eliminate external TTS costs. Generated WAV is converted to MP3 if `ffmpeg` is installed; otherwise WAV is used directly.
+
+### Local Offline TTS
+
+To enable offline narration generation:
+```
+export TTS_SOURCE=local
+pip install pyttsx3
+```
+Ensure a speech synthesis backend is available (on macOS pyttsx3 uses NSSpeechSynthesizer). If ffmpeg is installed the WAV will be converted to MP3 automatically.
+
 | Source | Env Setting | Purpose | Fallbacks |
 |--------|------------|---------|-----------|
 | Pexels | `MEDIA_SOURCE=pexels` (default) | Stock footage retrieval | Placeholder sample video if no match or API error |

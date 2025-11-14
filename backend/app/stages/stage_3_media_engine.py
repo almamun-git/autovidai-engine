@@ -9,6 +9,7 @@ from app.config import (
     STABLE_VIDEO_SERVER_URL,
     STABLE_VIDEO_POLL_INTERVAL,
     STABLE_VIDEO_MAX_POLL,
+    TTS_SOURCE,
 )
 
 DEV_FALLBACK_MODE = (
@@ -99,8 +100,45 @@ def _generate_silent_audio(scene_index: int, duration: float = 1.0) -> str:
             f.write(b"ID3\x04\x00\x00\x00\x00\x00\x0Ffallback")
     return audio_filename
 
-def get_audio_from_elevenlabs(text: str, scene_index: int) -> dict:
-    print(f"  - Generating TTS audio for: '{text[:50]}...'")
+def _tts_local_engine(text: str, scene_index: int) -> dict:
+    """Generate narration using local TTS engine (pyttsx3).
+
+    Produces a WAV then converts to MP3 if ffmpeg available; else leaves WAV.
+    Returns audio_path pointing to resulting file.
+    """
+    try:
+        import pyttsx3  # lightweight, offline
+    except Exception as e:
+        logging.warning("pyttsx3 not available: %s (falling back to silence)", e)
+        return {"audio_path": _generate_silent_audio(scene_index), "fallback": True}
+    os.makedirs("temp", exist_ok=True)
+    wav_path = f"temp/audio_scene_{scene_index}.wav"
+    engine = pyttsx3.init()
+    # Slightly faster speech for short-form pacing
+    rate = engine.getProperty('rate')
+    try:
+        engine.setProperty('rate', int(rate * 1.05))
+    except Exception:
+        pass
+    try:
+        engine.save_to_file(text, wav_path)
+        engine.runAndWait()
+    except Exception as e:
+        logging.warning("Local TTS generation failed: %s", e)
+        return {"audio_path": _generate_silent_audio(scene_index), "fallback": True}
+    # Convert to mp3 if ffmpeg exists
+    mp3_path = f"temp/audio_scene_{scene_index}.mp3"
+    if subprocess.run(["which", "ffmpeg"], capture_output=True).returncode == 0:
+        try:
+            subprocess.run(["ffmpeg", "-y", "-i", wav_path, "-codec:a", "libmp3lame", "-qscale:a", "4", mp3_path],
+                           check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return {"audio_path": mp3_path, "local_tts": True}
+        except Exception as e:
+            logging.warning("ffmpeg mp3 conversion failed: %s", e)
+            return {"audio_path": wav_path, "local_tts": True, "format": "wav"}
+    return {"audio_path": wav_path, "local_tts": True, "format": "wav"}
+
+def _tts_elevenlabs(text: str, scene_index: int) -> dict:
     if DEV_FALLBACK_MODE or not ELEVENLABS_API_KEY:
         audio_filename = _generate_silent_audio(scene_index)
         print(f"    -> ⚙️ Dev/placeholder silent audio: {audio_filename}")
@@ -110,7 +148,7 @@ def get_audio_from_elevenlabs(text: str, scene_index: int) -> dict:
     headers = {'Accept': 'audio/mpeg','Content-Type': 'application/json','xi-api-key': ELEVENLABS_API_KEY}
     payload = {'text': text,'model_id': 'eleven_monolingual_v1','voice_settings': {'stability': 0.5,'similarity_boost': 0.75}}
     try:
-        response = requests.post(url, headers=headers, json=payload)
+        response = requests.post(url, headers=headers, json=payload, timeout=30)
         response.raise_for_status()
         os.makedirs('temp', exist_ok=True)
         audio_filename = f"temp/audio_scene_{scene_index}.mp3"
@@ -126,6 +164,12 @@ def get_audio_from_elevenlabs(text: str, scene_index: int) -> dict:
             print(f"    -> 🔁 Using silent placeholder audio: {audio_filename}")
             return {"audio_path": audio_filename, "placeholder": True}
         return {"error": "ElevenLabs API request failed", "details": str(e)}
+
+def get_audio(text: str, scene_index: int) -> dict:
+    print(f"  - Generating TTS audio (source={TTS_SOURCE}) for: '{text[:50]}...'")
+    if TTS_SOURCE == 'local':
+        return _tts_local_engine(text, scene_index)
+    return _tts_elevenlabs(text, scene_index)
 
 def _svd_generate(prompt: str, scene_index: int) -> dict:
     """Attempt to generate a video clip via a local Stable Video Diffusion server.
@@ -229,7 +273,7 @@ def generate_media_assets(video_script: dict) -> list:
             else:
                 continue
         narration_text = scene.get("narration", "")
-        audio_result = get_audio_from_elevenlabs(narration_text, i)
+    audio_result = get_audio(narration_text, i)
         if "error" in audio_result:
             print(f"  ⚠️ Audio acquisition failed for scene {i+1}: {audio_result.get('error')}")
             if ALLOW_PLACEHOLDER:
