@@ -15,7 +15,8 @@ export default function Start() {
   const [loading, setLoading] = useState(false)
   const [progress, setProgress] = useState(0)
   const [suggesting, setSuggesting] = useState(false)
-  const [suggested, setSuggested] = useState<string | null>(null)
+  const [suggestions, setSuggestions] = useState<string[]>([])
+  const [suggestError, setSuggestError] = useState<string | null>(null)
 
   const start = async () => {
     setLoading(true)
@@ -64,29 +65,42 @@ export default function Start() {
                 className="btn-secondary"
                 onClick={async () => {
                   setSuggesting(true)
-                  setSuggested(null)
+                  setSuggestions([])
+                  setSuggestError(null)
                   try {
-                    const r = await fetch('/api/pipeline/suggest', { method: 'POST' })
+                    const r = await fetch('/api/pipeline/suggest?count=5', { method: 'POST' })
                     if (!r.ok) throw new Error('Suggestion failed')
                     const j = await r.json()
-                    if (j.niche) setSuggested(j.niche)
+                    if (Array.isArray(j.niches)) setSuggestions(j.niches)
+                    else if (j.niche) setSuggestions([j.niche])
                   } catch (e) {
                     console.error(e)
+                    setSuggestError(String(e))
                   } finally {
                     setSuggesting(false)
                   }
                 }}
               >
-                {suggesting ? 'Suggesting…' : 'Suggest topic'}
+                {suggesting ? 'Suggesting…' : 'Suggest topics'}
               </button>
             </div>
-            {suggested ? (
-              <div className="mt-2 flex items-center gap-2 text-sm">
-                <span className="text-muted">Suggested:</span>
-                <span className="px-2 py-1 rounded bg-white/5">{suggested}</span>
-                <button type="button" className="btn-ghost text-sm" onClick={() => { setNiche(suggested || ''); setSuggested(null) }}>
-                  Use suggestion
-                </button>
+            {suggestError ? (
+              <div className="mt-2 text-xs text-rose-300">{suggestError}</div>
+            ) : null}
+            {suggestions.length > 0 ? (
+              <div className="mt-2 flex items-center gap-2 text-sm flex-wrap">
+                <span className="text-muted">Top topics:</span>
+                {suggestions.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    className="px-2 py-1 rounded bg-white/5 border border-white/10 hover:border-primary/40"
+                    onClick={() => setNiche(s)}
+                    title="Use this topic"
+                  >
+                    {s}
+                  </button>
+                ))}
               </div>
             ) : null}
           </div>

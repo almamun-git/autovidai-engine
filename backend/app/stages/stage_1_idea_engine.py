@@ -4,6 +4,7 @@ import re
 import logging
 import os
 from app.config import GEMINI_API_KEY
+from typing import List
 
 # Allow overriding the Gemini model via env; default to a model commonly available per /providers/gemini/models.
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
@@ -104,6 +105,103 @@ def suggest_niche_via_model() -> str | None:
     except Exception as e:
         logging.error("❌ Error suggesting niche via model: %s", e)
         return None
+
+
+def suggest_trending_niches(count: int = 5) -> List[str]:
+    """Suggest 3-5 concise, safe trending topics for short-form videos.
+
+    Attempts Gemini first; falls back to deterministic stub list when unavailable.
+    Returns a list of strings (length between 3 and `count`).
+    """
+    # Normalize desired count between 3 and 8
+    n = max(3, min(count, 8))
+    if DEV_FALLBACK_MODE:
+        logging.warning("Dev fallback active — returning stub trending topics.")
+        stub = [
+            "AI productivity hacks",
+            "indoor plants care",
+            "morning routine optimization",
+            "budget meal prep",
+            "coding interview tips",
+            "healthy habit building",
+            "creator monetization tips",
+            "shorts editing tricks",
+        ]
+        import random
+        random.shuffle(stub)
+        return stub[:n]
+
+    prompt = (
+        "List top trending short-form video topics. "
+        f"Return ONLY a compact JSON array of {n} strings, no markdown, no extra text. "
+        "Keep each item short (3-5 words), safe, and platform-appropriate."
+    )
+    headers = {'Content-Type': 'application/json'}
+    payload = {"contents": [{"parts": [{"text": prompt}]}]}
+    try:
+        resp = requests.post(GEMINI_API_URL, headers=headers, json=payload, timeout=25)
+        resp.raise_for_status()
+        data = resp.json()
+        text = data['candidates'][0]['content']['parts'][0]['text']
+        # Prefer a JSON array; fallback to line-based parsing
+        arr_match = re.search(r"\[.*\]", text, re.DOTALL)
+        if arr_match:
+            raw = arr_match.group(0)
+            arr = json.loads(raw)
+            topics = [
+                re.sub(r"[^\w\s-]", "", str(x)).strip()
+                for x in arr
+                if str(x).strip()
+            ]
+            topics = [t for t in topics if t]
+            return topics[:n] if topics else []
+        # Fallback: split lines
+        lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+        topics: List[str] = []
+        for ln in lines:
+            # strip bullets, punctuation
+            t = re.sub(r"^[\-\*\d\.]+\s*", "", ln)
+            t = re.sub(r"[^\w\s-]", "", t).strip()
+            if t:
+                topics.append(t)
+            if len(topics) >= n:
+                break
+        # If model returned a single comma-separated line, split by commas/semicolons/pipes
+        if len(topics) <= 1 and lines:
+            single = lines[0]
+            segs = re.split(r"[,;\|]", single)
+            split_topics = []
+            for s in segs:
+                s2 = re.sub(r"[^\w\s-]", "", s).strip()
+                if s2:
+                    split_topics.append(s2)
+            if split_topics:
+                topics = split_topics
+        # Deduplicate while preserving order
+        seen = set()
+        deduped = []
+        for t in topics:
+            if t.lower() in seen:
+                continue
+            seen.add(t.lower())
+            deduped.append(t)
+        return deduped[:n]
+    except Exception as e:
+        logging.error("❌ Error suggesting trending topics: %s", e)
+        # Stub fallback
+        stub = [
+            "AI productivity hacks",
+            "indoor plants care",
+            "morning routine optimization",
+            "budget meal prep",
+            "coding interview tips",
+            "healthy habit building",
+            "creator monetization tips",
+            "shorts editing tricks",
+        ]
+        import random
+        random.shuffle(stub)
+        return stub[:n]
 
 
 def _stub_idea(niche: str, error: str | None = None) -> dict:
