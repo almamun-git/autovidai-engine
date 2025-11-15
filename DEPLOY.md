@@ -28,6 +28,10 @@ No VM to manage, automatic HTTPS, and one-click redeploys.
 - `SHOTSTACK_API_KEY`
 - Optional: `SHOTSTACK_STAGE` (defaults to `v1`), `RENDER_BACKEND=local` for free local rendering
 
+Defaults:
+- The provided blueprint sets `RENDER_BACKEND=local` by default (no Shotstack required).
+- To use Shotstack cloud rendering, set `SHOTSTACK_API_KEY` and switch `RENDER_BACKEND=shotstack`.
+
 4) First deploy:
 - Open the backend health endpoint: `https://<autovidai-api>.onrender.com/health`
 - Open the frontend: `https://<autovidai-web>.onrender.com`
