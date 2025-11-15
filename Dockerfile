@@ -16,4 +16,5 @@ COPY backend backend
 # FastAPI app
 ENV PYTHONPATH=/app/backend
 EXPOSE 8000
-CMD ["uvicorn","app.main:app","--host","0.0.0.0","--port","8000"]
+# Render sets $PORT in the container; default to 8000 for local runs
+CMD ["sh","-c","uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

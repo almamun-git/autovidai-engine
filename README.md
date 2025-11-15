@@ -222,7 +222,71 @@ Keep the machine running while jobs are active. If the server goes down mid-gene
 
 ---
 
-## 🗺️ Future Roadmap
+## � Deployment (Frontend + Backend)
+
+Quick cloud deploy (no VM): use the Render blueprint included in this repo. See DEPLOY.md for step‑by‑step instructions to deploy both backend and frontend on Render in minutes. Optional instructions for using Vercel for the frontend are included there as well.
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/mamun-apu/automatic-video-generating-ai-engine)
+
+This repo includes a Docker-based production setup that serves the frontend as static files via Nginx and proxies API/file requests to the FastAPI backend.
+
+### Prerequisites
+- Docker and Docker Compose installed
+- An `.env` file at the project root (copy from `.env.example`)
+
+### 1) Configure environment
+Copy the example file and fill in keys. For a quick start without external costs, set `RENDER_BACKEND=local`.
+
+```bash
+cp .env.example .env
+# Edit .env and provide keys or set RENDER_BACKEND=local
+```
+
+Note: When using Docker/Nginx, leave `VITE_API_BASE` empty so the frontend calls the backend via same-origin `/api` and `/files` paths.
+
+### 2) Build and run with Docker Compose
+
+```bash
+docker compose up -d --build
+```
+
+This starts two services:
+- backend (FastAPI + Uvicorn) on an internal network at port 8000
+- web (Nginx serving the built Vite app) exposed at http://localhost:8080
+
+Routes:
+- Frontend UI: http://localhost:8080
+- API health: http://localhost:8080/api/health
+- Dependency health: http://localhost:8080/api/health/deps
+- Local files: http://localhost:8080/files/your_video.mp4
+
+Rendered files are persisted in a Docker volume named `render_data` and mounted at `backend:/app/temp/render_local`.
+
+### 3) Logs and troubleshooting
+
+```bash
+docker compose logs -f backend
+docker compose logs -f web
+```
+
+If the web container returns 502s, ensure the backend is healthy (Compose waits on `/health`).
+
+### 4) Cloud deployment options
+
+- Single VM (recommended to start): copy the repo, create `.env`, and run `docker compose up -d --build`. Put your VM behind a domain and TLS (e.g., Caddy, Nginx, Traefik).
+- Split hosting: build and deploy the frontend to a static host (Vercel/Netlify) and deploy the backend to a server (Render/Fly.io). In that case set `VITE_API_BASE` in the frontend environment to your backend URL and rebuild.
+
+### 5) Stopping and cleanup
+
+```bash
+docker compose down
+# Remove persisted rendered videos (optional)
+docker volume rm automatic-video-generating-ai-engine_render_data
+```
+
+---
+
+## �🗺️ Future Roadmap
 
 This project is an ongoing proof-of-concept. The planned next steps include:
 

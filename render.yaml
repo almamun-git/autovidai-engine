@@ -1,0 +1,39 @@
+services:
+  - type: web
+    name: autovidai-api
+    env: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    autoDeploy: true
+    healthCheckPath: /health
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: PEXELS_API_KEY
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: SHOTSTACK_API_KEY
+        sync: false
+      - key: SHOTSTACK_STAGE
+        value: v1
+      - key: RENDER_BACKEND
+        value: local
+
+  - type: static
+    name: autovidai-web
+    plan: free
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_BASE
+        fromService:
+          type: web
+          name: autovidai-api
+          property: url
+    routes:
+      - type: rewrite
+        source: /.*
+        destination: /index.html
