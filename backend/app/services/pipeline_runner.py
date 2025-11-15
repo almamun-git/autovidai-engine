@@ -17,7 +17,7 @@ def run_pipeline(niche: str, upload: bool = False) -> dict:
     Returns a structured result for programmatic use by the API layer.
     """
     load_dotenv()
-    logging.info("Starting AutoVidAI pipeline — niche=%s", niche)
+    logging.info("Starting pipeline — niche=%s", niche)
 
     result = {
         "niche": niche,
@@ -103,7 +103,7 @@ def run_pipeline(niche: str, upload: bool = False) -> dict:
             logging.info("Stage 5 complete (uploaded)")
 
         result["stage"] = "done"
-        logging.info("AutoVidAI pipeline finished successfully")
+        logging.info("Pipeline finished successfully")
         return result
 
     except Exception as e:

@@ -1,6 +1,6 @@
 import argparse
 import logging
-from app.services.pipeline_runner import run_pipeline
+from backend.app.services.pipeline_runner import run_pipeline
 
 
 def configure_logging(verbose: bool = False):

@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# AutoVidAI Engine - Quick Setup Script
+# Automatic Video Generating AI Engine - Quick Setup Script
 # This script helps you set up the project quickly
 
-echo "🚀 AutoVidAI Engine - Quick Setup"
-echo "=================================="
+echo "🚀 Automatic Video Generating AI Engine - Quick Setup"
+echo "======================================================"
 echo ""
 
 # Check if Python 3 is installed

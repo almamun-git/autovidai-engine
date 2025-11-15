@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Clean unnecessary build/runtime artifacts from the AutoVidAI workspace.
+# Clean unnecessary build/runtime artifacts from the workspace.
 # Safe to run anytime; recreates needed temp dirs lazily when pipeline runs.
 set -euo pipefail
 

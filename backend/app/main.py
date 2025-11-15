@@ -49,7 +49,7 @@ class SuggestResponse(BaseModel):
     niches: list[str] | None = None  # new: top 3-5 topics
     error: str | None = None
 
-app = FastAPI(title="AutoVidAI Backend", version="0.1.0")
+app = FastAPI(title="Automatic Video Generating AI Engine Backend", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Dev permissive; tighten in prod

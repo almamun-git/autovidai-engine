@@ -1,6 +1,6 @@
-# AutoVidAI: The Automated Social Media Video Engine
+# Automatic Video Generating AI Engine
 
-AutoVidAI is a headless, API-first orchestration engine built in Python to fully automate the production of short-form social media videos. The goal is to create a fully autonomous, "set and forget" content pipeline by composing a series of micro-tasks powered by best-in-class APIs.
+**Automatic Video Generating AI Engine** (formerly AutoVidAI) is a headless, API-first orchestration engine built in Python to fully automate the production of short-form social media videos. The goal is to create a fully autonomous, "set and forget" content pipeline by composing a series of micro-tasks powered by best-in-class APIs.
 
 The engine currently operates as a **5-stage workflow**, passing structured JSON payloads between each stage to maintain state.
 

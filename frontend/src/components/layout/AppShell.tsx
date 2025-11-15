@@ -21,7 +21,7 @@ export default function AppShell({ children }: Props) {
             <div className="h-8 w-8 rounded-lg bg-primary/20 border border-white/10 flex items-center justify-center">
               <span className="text-primary text-sm font-semibold">AI</span>
             </div>
-            <span className="text-lg font-semibold">AutoVidAI</span>
+            <span className="text-lg font-semibold">Automatic Video Generating AI Engine</span>
           </Link>
           <nav className="mt-4 flex flex-col gap-1">
             {nav.map((n) => (
@@ -31,7 +31,7 @@ export default function AppShell({ children }: Props) {
               </NavLink>
             ))}
           </nav>
-          <div className="mt-auto hidden lg:block text-xs text-muted px-3 pt-6">© {new Date().getFullYear()} AutoVidAI</div>
+          <div className="mt-auto hidden lg:block text-xs text-muted px-3 pt-6">© {new Date().getFullYear()} Automatic Video Generating AI Engine</div>
         </aside>
         <div className="m-3 lg:m-6">
           <header className="glass flex items-center justify-between px-4 py-3">

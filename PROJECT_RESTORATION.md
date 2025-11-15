@@ -1,10 +1,10 @@
-# AutoVidAI Engine - Project Restoration Summary
+# Automatic Video Generating AI Engine - Project Restoration Summary
 
 ## What Was Fixed
 
 ### 1. **main.py** - Restored Core Pipeline
 - **Problem:** The entire pipeline code was commented out and replaced with unrelated web scraping code
-- **Solution:** Uncommented and restored the full AutoVidAI pipeline orchestration code
+- **Solution:** Uncommented and restored the full pipeline orchestration code
 - **Changes:**
   - Restored 5-stage pipeline flow
   - Updated function imports to use `generate_media_assets` from stage 3
