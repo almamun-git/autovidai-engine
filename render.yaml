@@ -22,15 +22,15 @@ services:
       - key: RENDER_BACKEND
         value: local
 
-  # Frontend static site (Vite build output)
-  - type: static_site
+  # Frontend (Vite build served via Docker/Nginx)
+  - type: web
     name: autovidai-web
+    env: docker
     plan: free
-    rootDir: frontend
-    buildCommand: npm ci && npm run build
-    publishPath: dist
-    # After creation, set VITE_API_BASE manually to the backend URL if needed.
-    routes:
-      - type: rewrite
-        source: /.*
-        destination: /index.html
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: ./frontend
+    autoDeploy: true
+    envVars:
+      - key: VITE_API_BASE
+        value: https://autovidai-api.onrender.com
+        # Update this after backend deployment with the actual backend URL
