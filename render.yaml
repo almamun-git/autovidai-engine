@@ -21,7 +21,7 @@ services:
       - key: RENDER_BACKEND
         value: local
 
-  - type: static
+  - type: static_site
     name: autovidai-web
     plan: free
     rootDir: frontend
