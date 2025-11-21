@@ -16,7 +16,7 @@ export default function App() {
         <Route path="/workflow" element={<WorkflowBuilder />} />
         <Route path="/generate" element={<Start />} />
         <Route path="/library" element={<VideoLibrary />} />
-  <Route path="/logs" element={<ErrorBoundary><LogsAnalytics /></ErrorBoundary>} />
+        <Route path="/logs" element={<ErrorBoundary><LogsAnalytics /></ErrorBoundary>} />
         <Route path="/jobs/:id" element={<JobDetail />} />
       </Routes>
     </AppShell>

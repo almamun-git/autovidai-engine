@@ -52,7 +52,7 @@ class SuggestResponse(BaseModel):
 app = FastAPI(title="Automatic Video Generating AI Engine Backend", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Dev permissive; tighten in prod
+    allow_origins=["https://automatic-video-generating-ai-engine.onrender.com"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
