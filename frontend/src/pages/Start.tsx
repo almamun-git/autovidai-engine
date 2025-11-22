@@ -1,13 +1,11 @@
 import { useState, useEffect } from 'react'
-import { Input, Label, Range } from '../components/ui/Form'
+import { Input, Label } from '../components/ui/Form'
 import ProgressBar from '../components/ui/ProgressBar'
 import { apiUrl } from '../lib/api'
 
 export default function Start() {
   // Do not hardcode a default niche — start empty so user can provide their own topic
   const [niche, setNiche] = useState('')
-  const [length, setLength] = useState(60)
-  const [pacing, setPacing] = useState(50)
   const [upload, setUpload] = useState(false)
   const [verbose, setVerbose] = useState(false)
   const [result, setResult] = useState<any>(null)
@@ -34,7 +32,7 @@ export default function Start() {
       const res = await fetch(apiUrl('/api/pipeline'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ niche, length, pacing, upload, verbose }),
+        body: JSON.stringify({ niche, upload, verbose }),
       })
       const data = await res.json()
       setProgress(90)
@@ -147,16 +145,6 @@ export default function Start() {
                 ))}
               </div>
             ) : null}
-          </div>
-          <div className="grid grid-cols-1 gap-4">
-            <div>
-              <Label>Video Length (sec)</Label>
-              <Range label="Length" value={length} onChange={setLength} min={30} max={180} />
-            </div>
-          </div>
-          <div>
-            <Label>Pacing</Label>
-            <Range label="Pacing" value={pacing} onChange={setPacing} min={0} max={100} />
           </div>
           <div className="flex items-center gap-6 text-sm">
             <label className="inline-flex items-center gap-2">
