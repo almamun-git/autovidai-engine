@@ -1,12 +1,11 @@
 import { useState, useEffect } from 'react'
-import { Input, Label, Select, Range } from '../components/ui/Form'
+import { Input, Label, Range } from '../components/ui/Form'
 import ProgressBar from '../components/ui/ProgressBar'
 import { apiUrl } from '../lib/api'
 
 export default function Start() {
   // Do not hardcode a default niche — start empty so user can provide their own topic
   const [niche, setNiche] = useState('')
-  const [style, setStyle] = useState('motivational')
   const [length, setLength] = useState(60)
   const [pacing, setPacing] = useState(50)
   const [upload, setUpload] = useState(false)
@@ -27,7 +26,7 @@ export default function Start() {
       const res = await fetch(apiUrl('/api/pipeline'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ niche, style, length, pacing, upload, verbose }),
+        body: JSON.stringify({ niche, length, pacing, upload, verbose }),
       })
       const data = await res.json()
       setProgress(90)
@@ -105,16 +104,7 @@ export default function Start() {
               </div>
             ) : null}
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label>Style</Label>
-              <Select value={style} onChange={e => setStyle(e.target.value)}>
-                <option value="motivational">Motivational</option>
-                <option value="educational">Educational</option>
-                <option value="storytelling">Storytelling</option>
-                <option value="news">News</option>
-              </Select>
-            </div>
+          <div className="grid grid-cols-1 gap-4">
             <div>
               <Label>Video Length (sec)</Label>
               <Range label="Length" value={length} onChange={setLength} min={30} max={180} />
