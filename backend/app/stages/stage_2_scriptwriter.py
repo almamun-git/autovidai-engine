@@ -20,23 +20,37 @@ def generate_video_script(video_idea: dict) -> dict:
     logging.info("--- Stage 2: Scriptwriter ---")
     logging.info("Received video idea. Generating script...")
 
-    prompt_template = f"""You are an expert short-form video scriptwriter 
-    specialized in creating viral, engaging videos optimized for social media (Shorts, Reels, TikTok). 
-    Write a complete video script based on the following concept:
+    prompt_template = f"""You are DeepResearch-ScriptWriter, an advanced reasoning agent specialized in high-retention short-form video scripting for TikTok, Reels, and YouTube Shorts. Use deep analysis, narrative optimization, and social-media algorithm insights to convert the following concept into a fully structured, viral-ready script.
 
-    Concept Title: {video_idea['title']}
-    Hook: {video_idea['hook']}
-    Key Points: {', '.join(video_idea['points'])}
-    Call to Action: {video_idea['cta']}
+    Input Concept:
+    - Title: {video_idea['title']}
+    - Hook: {video_idea['hook']}
+    - Key Points: {', '.join(video_idea['points'])}
+    - Call to Action: {video_idea['cta']}
 
-    Instructions:
-    1.  Create exactly 5–7 concise, engaging scenes.
-    2.  Scene 1 must start strongly with the provided hook.
-    3.  The middle scenes must clearly and creatively present each key point.
-    4.  The last scene must end energetically with the provided call to action.
-    5.  For each scene, provide a 'visual' (a vivid, descriptive prompt for an AI image/video generator) and a 'narration' (engaging voiceover text, max 15 words).
-    
-    Respond only with a single minified JSON object. The root object should be a dictionary containing a single key "scenes", which is a list of scene objects. Do not include markdown or any other text outside the JSON object.
+    Guidelines:
+    1. Leverage the strongest emotional and curiosity triggers from the concept to hook viewers.
+    2. Maintain a fast, punchy, dynamic pacing throughout the script.
+    3. Turn each Key Point into its own scene, and make each scene visually distinct to maximize contrast and novelty.
+    4. Describe visuals vividly with clear action/motion, suitable for AI generation (imagine a cinematic clip for each scene).
+    5. Keep narration lines sharp, impactful, and under 15 words each.
+
+    Output Instructions:
+    1. Produce **exactly 5 to 7 scenes** total.
+    2. **Scene 1** must open with the provided **Hook** as its narration.
+    3. **Scenes 2-{{n-1}}**: use each **Key Point** in order as the basis for each middle scene, crafting them into creative high-retention micro-stories.
+    4. **Final Scene**: end with the **Call to Action** as the narration, delivered energetically.
+    5. For every scene, include:
+    - "visual": A vivid, cinematic description of the scene (what the viewer sees).
+    - "narration": An engaging voiceover line (max 15 words).
+    6. **No filler, no generic advice, no repeated lines.** The tone should be fast-paced, modern, and feel native to the platform.
+    7. **Response Format** – Provide the output as a single **valid JSON object** with the structure:
+    `{{"scenes": [{{"visual": "...", "narration": "..."}}, ...]}}`
+    - Do **NOT** include any markdown, code blocks, or explanatory text. **Only output the JSON.**
+    - The JSON should be minified (no unnecessary line breaks or spaces).
+    - The response must contain **nothing outside the JSON** (no intro or comments, just the JSON object).
+
+    Remember: **Respond only with the JSON object** as specified, and ensure it follows the format and requirements above.
     """
 
     # Dev fallback: synthesize a deterministic script without external calls.

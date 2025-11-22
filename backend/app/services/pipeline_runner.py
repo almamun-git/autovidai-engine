@@ -35,7 +35,7 @@ def run_pipeline(niche: str, upload: bool = False) -> dict:
         # Stage 1: Idea
         result["stage"] = "idea"
         idea = generate_video_idea(niche)
-        print("Stage 1 idea:", idea)
+        # print("Stage 1 idea:", idea)
         if isinstance(idea, dict) and idea.get("error"):
             raise RuntimeError(f"Stage 1 failed: {idea['error']}")
         result["idea"] = idea
