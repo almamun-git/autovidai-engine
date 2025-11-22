@@ -17,6 +17,11 @@ export default function Start() {
   const [suggesting, setSuggesting] = useState(false)
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [suggestError, setSuggestError] = useState<string | null>(null)
+  const [idea, setIdea] = useState<any | null>(null)
+  const [prompt, setPrompt] = useState<string>('')
+  const [script, setScript] = useState<any | null>(null)
+  const [stage2Loading, setStage2Loading] = useState(false)
+  const [stage2Error, setStage2Error] = useState<string | null>(null)
 
   const start = async () => {
     setLoading(true)
@@ -48,6 +53,59 @@ export default function Start() {
     } finally {
       setProgress(100)
       setLoading(false)
+    }
+  }
+
+  const fetchStage2Prompt = async () => {
+    setStage2Loading(true)
+    setStage2Error(null)
+    setIdea(null)
+    setPrompt('')
+    setScript(null)
+    try {
+      const res = await fetch(apiUrl('/api/stage2/prompt'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ niche }),
+      })
+      if (!res.ok) {
+        const body = await res.text()
+        throw new Error(body || `Stage2 prompt failed with status ${res.status}`)
+      }
+      const data = await res.json()
+      setIdea(data.idea)
+      setPrompt(data.prompt)
+    } catch (e) {
+      setStage2Error(String(e))
+    } finally {
+      setStage2Loading(false)
+    }
+  }
+
+  const runStage2 = async () => {
+    if (!idea) {
+      setStage2Error('No idea available. Generate the prompt first.')
+      return
+    }
+    setStage2Loading(true)
+    setStage2Error(null)
+    setScript(null)
+    try {
+      const res = await fetch(apiUrl('/api/stage2/run'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idea, prompt }),
+      })
+      if (!res.ok) {
+        const body = await res.text()
+        throw new Error(body || `Stage2 run failed with status ${res.status}`)
+      }
+      const data = await res.json()
+      setScript(data.script)
+    } catch (e) {
+      setStage2Error(String(e))
+    } finally {
+      setStage2Loading(false)
     }
   }
 
@@ -130,6 +188,54 @@ export default function Start() {
               <ProgressBar value={progress} />
             </div>
           </div>
+          <div className="mt-6 border-t border-white/10 pt-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold">Interactive Scriptwriter (Stage 2)</h3>
+              <button
+                type="button"
+                className="btn-secondary text-xs"
+                disabled={stage2Loading || !niche}
+                onClick={fetchStage2Prompt}
+              >
+                {stage2Loading ? 'Loading…' : 'Generate Prompt'}
+              </button>
+            </div>
+            {!niche && (
+              <p className="text-xs text-muted">
+                Enter a niche/topic above, then click “Generate Prompt”.
+              </p>
+            )}
+            {stage2Error && (
+              <p className="text-xs text-rose-300">{stage2Error}</p>
+            )}
+            {prompt && (
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-muted">
+                  Stage 2 Prompt (editable)
+                </label>
+                <textarea
+                  className="w-full h-40 text-xs font-mono bg-black/40 border border-white/10 rounded-lg p-2 focus:outline-none focus:border-cyan-400/60"
+                  value={prompt}
+                  onChange={e => setPrompt(e.target.value)}
+                />
+                <div className="flex items-center justify-between">
+                  <button
+                    type="button"
+                    className="btn-primary text-xs"
+                    disabled={stage2Loading}
+                    onClick={runStage2}
+                  >
+                    {stage2Loading ? 'Running Scriptwriter…' : 'Run Scriptwriter'}
+                  </button>
+                  {script && Array.isArray(script.scenes) && (
+                    <span className="text-xs text-emerald-300">
+                      Script generated with {script.scenes.length} scenes
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
       <div className="card space-y-4">
@@ -151,6 +257,31 @@ export default function Start() {
             <pre className="text-xs font-mono bg-white/5 p-3 rounded-lg border border-white/10 max-h-64 overflow-auto">{JSON.stringify(result, null, 2)}</pre>
           ) : (
             <p className="text-sm text-muted">Output will appear here after generation starts.</p>
+          )}
+        </div>
+        <div className="pt-3 border-t border-white/10 space-y-2">
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-muted">
+            Stage 2 Script
+          </h4>
+          {script && Array.isArray(script.scenes) && script.scenes.length > 0 ? (
+            <div className="space-y-2 max-h-56 overflow-auto pr-1">
+              {script.scenes.map((scene: any, idx: number) => (
+                <div
+                  key={idx}
+                  className="border border-white/10 rounded-md p-2 bg-black/40"
+                >
+                  <div className="text-xs font-semibold mb-1">Scene {idx + 1}</div>
+                  <div className="text-[11px] text-muted mb-1">
+                    <span className="font-semibold">Visual:</span> {scene.visual}
+                  </div>
+                  <div className="text-[11px]">
+                    <span className="font-semibold">Narration:</span> {scene.narration}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-muted">No script yet. Use Interactive Scriptwriter to generate one.</p>
           )}
         </div>
       </div>
