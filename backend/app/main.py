@@ -47,6 +47,7 @@ class PipelineResponse(BaseModel):
     final_video_url: str | None
     script: Dict | None = None
     prompt: str | None = None
+    assets: list[Dict] | None = None
     uploaded: bool
     error: str | None
 
@@ -319,6 +320,7 @@ def pipeline(req: PipelineRequest):
         final_video_url=result.get("final_video_url"),
         script=result.get("script"),
         prompt=result.get("prompt"),
+        assets=result.get("assets"),
         uploaded=result.get("uploaded", False),
         error=result.get("error"),
     )
