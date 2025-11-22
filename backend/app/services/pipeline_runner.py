@@ -53,6 +53,12 @@ def run_pipeline(niche: str, upload: bool = False) -> dict:
         logging.info("Stage 2 complete")
         logging.debug("SCRIPT: %s", json.dumps(script, indent=2))
 
+        # Short-circuit stages 3–5 in test/dev mode to speed up iteration.
+        if os.getenv("AUTOVIDAI_DISABLE_STAGES_3_TO_5", "").lower() in {"1", "true", "yes"}:
+            logging.info("Test mode: skipping stages 3–5 (assets, render, upload)")
+            result["stage"] = "done"
+            return result
+
         # Stage 3: Assets
         result["stage"] = "assets"
         assets = generate_media_assets(script)
