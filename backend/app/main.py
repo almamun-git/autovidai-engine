@@ -8,7 +8,12 @@ from pydantic import BaseModel
 from typing import List, Dict
 
 from app.services.pipeline_runner import run_pipeline
-from app.stages.stage_1_idea_engine import suggest_niche_via_model, suggest_trending_niches
+from app.stages.stage_1_idea_engine import (
+    suggest_niche_via_model,
+    suggest_trending_niches,
+    generate_video_idea,
+)
+from app.stages.stage_2_scriptwriter import build_script_prompt, run_scriptwriter
 from pydantic import BaseModel
 from app.config import (
     AUTOVIDAI_DEV_MODE,
@@ -42,6 +47,32 @@ class PipelineResponse(BaseModel):
     final_video_url: str | None
     uploaded: bool
     error: str | None
+
+
+class Stage2PromptRequest(BaseModel):
+    """Request to build a default Stage 2 prompt.
+
+    Either provide a raw niche (we will call Stage 1), or a full idea dict
+    generated previously. For now we keep this minimal and flexible.
+    """
+
+    niche: str | None = None
+    idea: Dict | None = None
+
+
+class Stage2PromptResponse(BaseModel):
+    idea: Dict
+    prompt: str
+
+
+class Stage2RunRequest(BaseModel):
+    idea: Dict
+    prompt: str
+    model: str | None = None
+
+
+class Stage2RunResponse(BaseModel):
+    script: Dict
 
 
 class SuggestResponse(BaseModel):
@@ -287,6 +318,39 @@ def pipeline(req: PipelineRequest):
         uploaded=result.get("uploaded", False),
         error=result.get("error"),
     )
+
+
+@app.post("/stage2/prompt", response_model=Stage2PromptResponse)
+def stage2_prompt(req: Stage2PromptRequest):
+    """Build and return the default Stage 2 prompt (and idea).
+
+    - If an idea is provided, we trust and reuse it.
+    - Otherwise, we call Stage 1 to generate an idea from the niche.
+    """
+    if req.idea is not None:
+        idea = req.idea
+    else:
+        if not req.niche:
+            raise HTTPException(status_code=400, detail="Either niche or idea must be provided")
+        idea = generate_video_idea(req.niche)
+        if isinstance(idea, dict) and idea.get("error"):
+            raise HTTPException(status_code=500, detail=f"Stage 1 failed: {idea['error']}")
+
+    prompt = build_script_prompt(idea)
+    return Stage2PromptResponse(idea=idea, prompt=prompt)
+
+
+@app.post("/stage2/run", response_model=Stage2RunResponse)
+def stage2_run(req: Stage2RunRequest):
+    """Run Stage 2 scriptwriter with a supplied prompt and optional model."""
+
+    script = run_scriptwriter(req.idea, override_prompt=req.prompt, model=req.model)
+    if (not isinstance(script, dict)) or (not script.get("scenes")) or script.get("error"):
+        raise HTTPException(
+            status_code=500,
+            detail=script.get("error") if isinstance(script, dict) else "Invalid script returned by Stage 2",
+        )
+    return Stage2RunResponse(script=script)
 
 @app.get("/files/{filename}")
 def get_file(filename: str):
